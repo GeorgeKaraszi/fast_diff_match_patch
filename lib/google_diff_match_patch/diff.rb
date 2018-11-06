@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-# Class containing the diff, match and patch methods.
-# Also contains the behaviour settings.
-
 # rubocop:disable Metrics/BlockNesting
 module GoogleDiffMatchPatch
   class Diff
@@ -22,7 +19,7 @@ module GoogleDiffMatchPatch
 
       # Check for equality (speedup).
       if text1 == text2
-        return text1.empty? ? [] : [[:equal, text1]]
+        return text1.empty? ? [] : [new_equal_node(text1)]
       end
 
       # Set a deadline by which time the diff must be complete.
@@ -51,8 +48,8 @@ module GoogleDiffMatchPatch
       diffs = diff_compute(text1, text2, check_lines, deadline)
 
       # Restore the prefix and suffix.
-      diffs.unshift([:equal, common_prefix]) unless common_prefix.nil?
-      diffs << [:equal, common_suffix] unless common_suffix.nil?
+      diffs.unshift(new_equal_node(common_prefix)) unless common_prefix.nil?
+      diffs << new_equal_node(common_suffix)       unless common_suffix.nil?
       diff_cleanup_merge(diffs)
 
       diffs
@@ -62,21 +59,21 @@ module GoogleDiffMatchPatch
     # have any common prefix or suffix.
     def diff_compute(text1, text2, check_lines, deadline)
       # Just add some text (speedup).
-      return [[:insert, text2]] if text1.empty?
+      return [new_insert_node(text2)] if text1.empty?
 
       # Just delete some text (speedup).
-      return [[:delete, text1]] if text2.empty?
+      return [new_delete_node(text1)] if text2.empty?
 
       short_text, long_text = [text1, text2].sort_by(&:length)
       sub_index = long_text.index(short_text)
 
       unless sub_index.nil?
-        operation = text1.length > text2.length ? :delete : :insert
+        operation = text1.length > text2.length ? :DELETE : :INSERT
         # Shorter text is inside the longer text (speedup).
         diffs = []
-        diffs << [operation, long_text[0...sub_index]]
-        diffs << [:equal, short_text]
-        diffs << [operation, long_text[(sub_index + short_text.length)..-1]]
+        diffs << Diff::Node.new(operation, long_text[0...sub_index])
+        diffs << new_equal_node(short_text)
+        diffs << Diff::Node.new(operation, long_text[(sub_index + short_text.length)..-1])
 
         return diffs
       end
@@ -84,7 +81,7 @@ module GoogleDiffMatchPatch
       if short_text.length == 1
         # Single character string.
         # After the previous speedup, the character can't be an equality.
-        return [[:delete, text1], [:insert, text2]]
+        return [new_delete_node(text1), new_insert_node(text2)]
       end
 
       # Garbage collect.
@@ -100,7 +97,7 @@ module GoogleDiffMatchPatch
         diffs_a = diff_main(text1_a, text2_a, check_lines, deadline)
         diffs_b = diff_main(text1_b, text2_b, check_lines, deadline)
         # Merge the results.
-        return diffs_a + [[:equal, mid_common]] + diffs_b
+        return diffs_a + [new_equal_node(mid_common)] + diffs_b
       end
 
       if check_lines && text1.length > 100 && text2.length > 100
@@ -123,7 +120,7 @@ module GoogleDiffMatchPatch
 
       # Rediff any replacement blocks, this time character-by-character.
       # Add a dummy entry at the end.
-      diffs << [:equal, ""]
+      diffs << new_equal_node("")
       pointer      = 0
       count_delete = 0
       count_insert = 0
@@ -131,13 +128,13 @@ module GoogleDiffMatchPatch
       text_insert  = ""
 
       while pointer < diffs.length
-        case diffs[pointer][0]
-        when :insert
+        case diffs[pointer].operation
+        when :INSERT
           count_insert += 1
-          text_insert += diffs[pointer][1]
-        when :delete
+          text_insert += diffs[pointer].text
+        when :DELETE
           count_delete += 1
-          text_delete += diffs[pointer][1]
+          text_delete += diffs[pointer].text
         else # equal
           # Upon reaching an equality, check for prior redundancies.
           if count_delete.positive? && count_insert.positive?
@@ -264,7 +261,7 @@ module GoogleDiffMatchPatch
 
       # Diff took too long and hit the deadline or
       # number of diffs equals number of characters, no commonality at all.
-      [[:delete, text1], [:insert, text2]]
+      [new_delete_node(text1), new_insert_node(text2)]
     end
     # rubocop:enable Style/ConditionalAssignment
 
@@ -277,10 +274,10 @@ module GoogleDiffMatchPatch
       text2b = text2[y..-1]
 
       # Compute both diffs serially.
-      diffs = diff_main(text1a, text2a, false, deadline)
-      diffsb = diff_main(text1b, text2b, false, deadline)
+      diffs_a = diff_main(text1a, text2a, false, deadline)
+      diffs_b = diff_main(text1b, text2b, false, deadline)
 
-      diffs + diffsb
+      diffs_a + diffs_b
     end
 
     # Split two texts into an array of strings.  Reduce the texts to a string
@@ -295,9 +292,9 @@ module GoogleDiffMatchPatch
         chars = ""
         text.each_line do |line|
           if line_hash[line]
-            chars = "#{chars}#{line_hash[line].chr(Encoding::UTF_8)}"
+            chars += line_hash[line].chr(Encoding::UTF_8)
           else
-            chars           = "#{chars}#{line_array.length.chr(Encoding::UTF_8)}"
+            chars += line_array.length.chr(Encoding::UTF_8)
             line_hash[line] = line_array.length
             line_array << line
           end
@@ -476,18 +473,18 @@ module GoogleDiffMatchPatch
       length_deletions2  = 0
 
       while pointer < diffs.length
-        if diffs[pointer][0] == :equal # Equality found.
+        if diffs[pointer].is_equal? # Equality found.
           equalities.push(pointer)
           length_insertions1 = length_insertions2
           length_deletions1  = length_deletions2
           length_insertions2 = 0
           length_deletions2  = 0
-          last_equality      = diffs[pointer][1]
+          last_equality      = diffs[pointer].text
         else # An insertion or deletion.
-          if diffs[pointer][0] == :insert
-            length_insertions2 += diffs[pointer][1].length
+          if diffs[pointer].is_insert?
+            length_insertions2 += diffs[pointer].text.length
           else
-            length_deletions2 += diffs[pointer][1].length
+            length_deletions2 += diffs[pointer].text.length
           end
 
           maximum_min_length = [
@@ -496,8 +493,8 @@ module GoogleDiffMatchPatch
           ].min
 
           if !last_equality.nil? && last_equality.length <= maximum_min_length
-            diffs[equalities.last, 0]     = [[:delete, last_equality]] # Duplicate record.
-            diffs[equalities.last + 1][0] = :insert                    # Change second copy to insert.
+            diffs[equalities.last, 0] = [new_delete_node(last_equality)] # Duplicate record.
+            diffs[equalities.last + 1].as_insert!                      # Change second copy to insert.
             equalities.pop(2)                                          # Throw away the equality we just deleted.
             pointer = equalities.last || -1
 
@@ -525,25 +522,21 @@ module GoogleDiffMatchPatch
       # Only extract an overlap if it is as big as the edit ahead or behind it.
       pointer = 1
       while pointer < diffs.length
-        if diffs[pointer - 1][0] == :delete && diffs[pointer][0] == :insert
-          deletion = diffs[pointer - 1][1]
-          insertion = diffs[pointer][1]
+        if diffs[pointer - 1].is_delete? && diffs[pointer].is_insert?
+          deletion = diffs[pointer - 1].text
+          insertion = diffs[pointer].text
           overlap_length1 = diff_common_overlap(deletion, insertion)
           overlap_length2 = diff_common_overlap(insertion, deletion)
           if overlap_length1 >= overlap_length2 && (overlap_length1 >= deletion.length / 2.0 || overlap_length1 >= insertion.length / 2.0)
             # Overlap found.  Insert an equality and trim the surrounding edits.
-            diffs[pointer, 0]     = [[:equal, insertion[0...overlap_length1]]]
-            diffs[pointer - 1][0] = :delete
-            diffs[pointer - 1][1] = deletion[0...-overlap_length1]
-            diffs[pointer + 1][0] = :insert
-            diffs[pointer + 1][1] = insertion[overlap_length1..-1]
+            diffs[pointer, 0]  = [new_equal_node(insertion[0...overlap_length1])]
+            diffs[pointer - 1] = new_delete_node(deletion[0...-overlap_length1])
+            diffs[pointer + 1] = new_insert_node(insertion[overlap_length1..-1])
             pointer += 1
           elsif overlap_length2 >= deletion.length / 2.0 || overlap_length2 >= insertion.length / 2.0
-            diffs[pointer, 0]     = [[:equal, deletion[0...overlap_length2]]]
-            diffs[pointer - 1][0] = :insert
-            diffs[pointer - 1][1] = insertion[0...-overlap_length2]
-            diffs[pointer + 1][0] = :delete
-            diffs[pointer + 1][1] = deletion[overlap_length2..-1]
+            diffs[pointer, 0] = [new_equal_node(deletion[0...overlap_length2])]
+            diffs[pointer - 1] = new_insert_node(insertion[0...-overlap_length2])
+            diffs[pointer + 1] = new_delete_node(deletion[overlap_length2..-1])
             pointer += 1
           end
           pointer += 1
@@ -600,11 +593,11 @@ module GoogleDiffMatchPatch
       pointer = 1
       # Intentionally ignore the first and last element (don't need checking).
       while pointer < diffs.length - 1
-        if diffs[pointer - 1][0] == :equal && diffs[pointer + 1][0] == :equal
+        if diffs[pointer - 1].is_equal? && diffs[pointer + 1].is_equal?
           # This is a single edit surrounded by equalities.
-          equality1 = diffs[pointer - 1][1]
-          edit      = diffs[pointer][1]
-          equality2 = diffs[pointer + 1][1]
+          equality1 = diffs[pointer - 1].text
+          edit      = diffs[pointer].text
+          equality2 = diffs[pointer + 1].text
 
           # First, shift the edit as far left as possible.
           common_offset = diff_common_suffix(equality1, edit)
@@ -634,22 +627,22 @@ module GoogleDiffMatchPatch
             best_equality2 = equality2
           end
 
-          if diffs[pointer - 1][1] != best_equality1
+          if diffs[pointer - 1].text != best_equality1
             # We have an improvement, save it back to the diff.
             if best_equality1.empty?
               diffs[pointer - 1, 1] = []
               pointer -= 1
             else
-              diffs[pointer - 1][1] = best_equality1
+              diffs[pointer - 1].text = best_equality1
             end
 
-            diffs[pointer][1] = best_edit
+            diffs[pointer].text = best_edit
 
             if best_equality2.empty?
               diffs[pointer + 1, 1] = []
               pointer -= 1
             else
-              diffs[pointer + 1][1] = best_equality2
+              diffs[pointer + 1].text = best_equality2
             end
           end
         end
@@ -670,13 +663,13 @@ module GoogleDiffMatchPatch
       post_del      = false # Is there a deletion operation after the last equality.
 
       while pointer < diffs.length
-        if diffs[pointer][0] == :equal # Equality found.
-          if diffs[pointer][1].length < diff_edit_cost && (post_ins || post_del)
+        if diffs[pointer].is_equal? # Equality found.
+          if diffs[pointer].text.length < diff_edit_cost && (post_ins || post_del)
             # Candidate found.
             equalities.push(pointer)
             pre_ins       = post_ins
             pre_del       = post_del
-            last_equality = diffs[pointer][1]
+            last_equality = diffs[pointer].text
           else
             # Not a candidate, and can never become one.
             equalities.clear
@@ -685,7 +678,7 @@ module GoogleDiffMatchPatch
           post_ins = false
           post_del = false
         else # An insertion or deletion.
-          if diffs[pointer][0] == :delete
+          if diffs[pointer].is_delete?
             post_del = true
           else
             post_ins = true
@@ -700,10 +693,10 @@ module GoogleDiffMatchPatch
 
           pre_post_count = [pre_ins, pre_del, post_ins, post_del].count(true)
           if !last_equality.empty? && (pre_post_count == 4 || ((last_equality.length < diff_edit_cost / 2) && pre_post_count == 3))
-            diffs[equalities.last, 0]     = [[:delete, last_equality]] # Duplicate record.
-            diffs[equalities.last + 1][0] = :insert                    # Change second copy to insert.
-            last_equality                 = ""
-            equalities.pop                                             # Throw away the equality we just deleted
+            diffs[equalities.last, 0] = [new_delete_node(last_equality)] # Duplicate record.
+            diffs[equalities.last + 1].as_insert!                    # Change second copy to insert.
+            equalities.pop                                           # Throw away the equality we just deleted
+            last_equality = ""
             if pre_ins && pre_del
               # No changes made which could affect previous entry, keep going.
               post_ins = true
@@ -729,7 +722,7 @@ module GoogleDiffMatchPatch
     # Reorder and merge like edit sections.  Merge equalities.
     # Any edit section can move as long as it doesn't cross an equality.
     def diff_cleanup_merge(diffs)
-      diffs.push([:equal, ""]) # Add a dummy entry at the end.
+      diffs << new_equal_node("") # Add a dummy entry at the end.
       pointer      = 0
       count_delete = 0
       count_insert = 0
@@ -737,16 +730,16 @@ module GoogleDiffMatchPatch
       text_insert  = ""
 
       while pointer < diffs.length
-        case diffs[pointer][0]
-        when :insert
-          text_insert = "#{text_insert}#{diffs[pointer][1]}"
+        case diffs[pointer].operation
+        when :INSERT
+          text_insert  += diffs[pointer].text
           pointer      += 1
           count_insert += 1
-        when :delete
-          text_delete = "#{text_delete}#{diffs[pointer][1]}"
+        when :DELETE
+          text_delete  += diffs[pointer].text
           count_delete += 1
           pointer      += 1
-        else # :equal
+        else # :EQUAL
           # Upon reaching an equality, check for prior redundancies.
           if count_delete + count_insert > 1
             if count_delete.nonzero? && count_insert.nonzero?
@@ -754,10 +747,10 @@ module GoogleDiffMatchPatch
               common_length = diff_common_prefix(text_insert, text_delete)
               if common_length.nonzero?
                 position = pointer - count_delete - count_insert
-                if position.positive? && diffs[position - 1][0] == :equal
-                  diffs[position - 1][1] = "#{diffs[position - 1][1]}#{text_insert[0...common_length]}"
+                if position.positive? && diffs[position - 1].is_equal?
+                  diffs[position - 1].text += text_insert[0...common_length]
                 else
-                  diffs.unshift([:equal, text_insert[0...common_length]])
+                  diffs.unshift(new_equal_node(text_insert[0...common_length]))
                   pointer += 1
                 end
                 text_insert = text_insert[common_length..-1]
@@ -766,9 +759,9 @@ module GoogleDiffMatchPatch
               # Factor out any common suffixies.
               common_length = diff_common_suffix(text_insert, text_delete)
               if common_length.nonzero?
-                diffs[pointer][1] = "#{text_insert[-common_length..-1]}#{diffs[pointer][1]}"
-                text_insert       = text_insert[0...-common_length]
-                text_delete       = text_delete[0...-common_length]
+                diffs[pointer].text =  text_insert[-common_length..-1] + diffs[pointer].text
+                text_insert         = text_insert[0...-common_length]
+                text_delete         = text_delete[0...-common_length]
               end
             end
 
@@ -776,18 +769,18 @@ module GoogleDiffMatchPatch
             position = pointer - count_delete - count_insert
             diffs[position, count_delete + count_insert] =
               if count_delete.zero?
-                [[:insert, text_insert]]
+                [new_insert_node(text_insert)]
               elsif count_insert.zero?
-                [[:delete, text_delete]]
+                [new_delete_node(text_delete)]
               else
-                [[:delete, text_delete], [:insert, text_insert]]
+                [new_delete_node(text_delete), new_insert_node(text_insert)]
               end
 
             pointer = position + (count_delete.zero? ? 0 : 1) + (count_insert.zero? ? 0 : 1) + 1
-          elsif pointer.positive? && diffs[pointer - 1][0] == :equal
+          elsif pointer.positive? && diffs[pointer - 1].is_equal?
             # Merge this equality with the previous one.
-            diffs[pointer - 1][1] = "#{diffs[pointer - 1][1]}#{diffs[pointer][1]}"
-            diffs[pointer, 1]     = []
+            diffs[pointer - 1].text += diffs[pointer].text
+            diffs[pointer, 1] = []
           else
             pointer += 1
           end
@@ -798,9 +791,7 @@ module GoogleDiffMatchPatch
         end
       end
 
-      if diffs.last[1].empty?
-        diffs.pop # Remove the dummy entry at the end.
-      end
+      diffs.pop if diffs.last.text.empty? # Remove the dummy entry at the end.
 
       # Second pass: look for single edits surrounded on both sides by equalities
       # which can be shifted sideways to eliminate an equality.
@@ -810,20 +801,20 @@ module GoogleDiffMatchPatch
 
       # Intentionally ignore the first and last element (don't need checking).
       while pointer < diffs.length - 1
-        if diffs[pointer - 1][0] == :equal && diffs[pointer + 1][0] == :equal
+        if diffs[pointer - 1].is_equal? && diffs[pointer + 1].is_equal?
           # This is a single edit surrounded by equalities.
-          if diffs[pointer][1][-diffs[pointer - 1][1].length..-1] == diffs[pointer - 1][1]
+          if diffs[pointer].text[-diffs[pointer - 1].text.length..-1] == diffs[pointer - 1].text
             # Shift the edit over the previous equality.
-            changes               = true
-            diffs[pointer][1]     = "#{diffs[pointer - 1][1]}#{diffs[pointer][1][0...-diffs[pointer - 1][1].length]}"
-            diffs[pointer + 1][1] = "#{diffs[pointer - 1][1]}#{diffs[pointer + 1][1]}"
-            diffs[pointer - 1, 1] = []
-          elsif diffs[pointer][1][0...diffs[pointer + 1][1].length] == diffs[pointer + 1][1]
+            changes                  = true
+            diffs[pointer].text      = diffs[pointer - 1].text + diffs[pointer].text[0...-diffs[pointer - 1].text.length]
+            diffs[pointer + 1].text  = diffs[pointer - 1].text + diffs[pointer + 1].text
+            diffs[pointer - 1, 1]    = []
+          elsif diffs[pointer].text[0...diffs[pointer + 1].text.length] == diffs[pointer + 1].text
             # Shift the edit over the next equality.
-            changes               = true
-            diffs[pointer - 1][1] = "#{diffs[pointer - 1][1]}#{diffs[pointer + 1][1]}"
-            diffs[pointer][1]     = "#{diffs[pointer][1][diffs[pointer + 1][1].length..-1]}#{diffs[pointer + 1][1]}"
-            diffs[pointer + 1, 1] = []
+            changes = true
+            diffs[pointer - 1].text += diffs[pointer + 1].text
+            diffs[pointer].text     = diffs[pointer].text[diffs[pointer + 1].text.length..-1] + diffs[pointer + 1].text
+            diffs[pointer + 1, 1]   = []
           end
         end
         pointer += 1
@@ -838,11 +829,11 @@ module GoogleDiffMatchPatch
       diffs.map do |op, data|
         text = data.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;").gsub('\n', "&para;<br>")
         case op
-        when :insert
+        when :INSERT
           "<ins style=\"background:#e6ffe6;\">#{text}</ins>"
-        when :delete
+        when :DELETE
           "<del style=\"background:#ffe6e6;\">#{text}</del>"
-        else #:equal
+        else #:EQUAL
           "<span>#{text}</span>"
         end
       end.join
@@ -851,7 +842,7 @@ module GoogleDiffMatchPatch
     # Compute and return the source text (all equalities and deletions).
     def diff_text1(diffs)
       diffs.map do |op, data|
-        if op == :insert
+        if op == :INSERT
           ""
         else
           data
@@ -862,7 +853,7 @@ module GoogleDiffMatchPatch
     # Compute and return the destination text (all equalities and insertions).
     def diff_text2(diffs)
       diffs.map do |op, data|
-        if op == :delete
+        if op == :DELETE
           ""
         else
           data
@@ -879,9 +870,9 @@ module GoogleDiffMatchPatch
 
       diffs.each do |op, data|
         case op
-        when :insert
+        when :INSERT
           insertions += data.length
-        when :delete
+        when :DELETE
           deletions += data.length
         else # equal
           # A deletion and an insertion is one substitution.
@@ -901,14 +892,28 @@ module GoogleDiffMatchPatch
     def diff_to_delta(diffs)
       diffs.map do |op, data|
         case op
-        when :insert
-          "+#{URI.encode(data, %r{[^0-9A-Za-z_.;!~*'(),\/?:@&=+$\#-]})}"
-        when :delete
+        when :INSERT
+          "+#{URI.encode(data, %r{[^0-9A-Za-z_.;!~*'(),\/?:@&=+$#-]})}"
+        when :DELETE
           "-#{data.length}"
         else # equal
           "=#{data.length}"
         end
       end.join("\t").gsub("%20", " ")
+    end
+
+    private
+
+    def new_delete_node(text)
+      Diff::Node.new(:DELETE, text)
+    end
+
+    def new_insert_node(text)
+      Diff::Node.new(:INSERT, text)
+    end
+
+    def new_equal_node(text)
+      Diff::Node.new(:EQUAL, text)
     end
   end
 end

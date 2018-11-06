@@ -74,11 +74,11 @@ module GoogleDiffMatchPatch
     end
 
     describe "#diff_chars_to_lines" do
-      let(:diffs) { [[:equal, "\x01\x02\x01"], [:insert, "\x02\x01\x02"]] }
+      let(:diffs) { [equal_node("\x01\x02\x01"), insert_node("\x02\x01\x02")] }
 
       it "converts unicode back to ascii" do
         expect { dmp.diff_chars_to_lines(diffs, ["", "alpha\n", "beta\n"]) }
-          .to change { diffs }.to([[:equal, "alpha\nbeta\nalpha\n"], [:insert, "beta\nalpha\nbeta\n"]])
+          .to change { diffs }.to([equal_node("alpha\nbeta\nalpha\n"), insert_node("beta\nalpha\nbeta\n")])
       end
 
       it "Handel's large sets" do
@@ -92,82 +92,82 @@ module GoogleDiffMatchPatch
         expect(n).to eq(chars.length)
         line_list.unshift("")
 
-        diffs = [[:delete, chars]]
-        expect { dmp.diff_chars_to_lines(diffs, line_list) }.to change { diffs }.to([[:delete, lines]])
+        diffs = [delete_node(chars)]
+        expect { dmp.diff_chars_to_lines(diffs, line_list) }.to change { diffs }.to([delete_node(lines)])
       end
     end
 
     describe "#diff_cleanup_merge" do
       it "has no changed case" do
-        diffs = [[:equal, "a"], [:delete, "b"], [:insert, "c"]]
+        diffs = [equal_node("a"), delete_node("b"), insert_node("c")]
         expect { dmp.diff_cleanup_merge(diffs) }.to_not change { diffs }
       end
 
       it "Merges Equalities" do
-        diffs = [[:equal, "a"], [:equal, "b"], [:equal, "c"]]
-        expect_cleanup_change(diffs, [[:equal, "abc"]])
+        diffs = [equal_node("a"), equal_node("b"), equal_node("c")]
+        expect_cleanup_change(diffs, [equal_node("abc")])
       end
 
       it "Merges deletions" do
-        diffs = [[:delete, "a"], [:delete, "b"], [:delete, "c"]]
-        expect_cleanup_change(diffs, [[:delete, "abc"]])
+        diffs = [delete_node("a"), delete_node("b"), delete_node("c")]
+        expect_cleanup_change(diffs, [delete_node("abc")])
       end
 
       it "Merges insertions" do
-        diffs = [[:insert, "a"], [:insert, "b"], [:insert, "c"]]
-        expect_cleanup_change(diffs, [[:insert, "abc"]])
+        diffs = [insert_node("a"), insert_node("b"), insert_node("c")]
+        expect_cleanup_change(diffs, [insert_node("abc")])
       end
 
       it "Merges interweaved" do
         diffs = [
-          [:delete, "a"], [:insert, "b"], [:delete, "c"],
-          [:insert, "d"], [:equal, "e"], [:equal, "f"]
+          delete_node("a"), insert_node("b"), delete_node("c"),
+          insert_node("d"), equal_node("e"), equal_node("f")
         ]
 
-        expect_cleanup_change(diffs, [[:delete, "ac"], [:insert, "bd"], [:equal, "ef"]])
+        expect_cleanup_change(diffs, [delete_node("ac"), insert_node("bd"), equal_node("ef")])
       end
 
       it "slide edit left" do
-        diffs = [[:equal, "a"], [:insert, "ba"], [:equal, "c"]]
-        expect_cleanup_change(diffs, [[:insert, "ab"], [:equal, "ac"]])
+        diffs = [equal_node("a"), insert_node("ba"), equal_node("c")]
+        expect_cleanup_change(diffs, [insert_node("ab"), equal_node("ac")])
       end
 
       it "slide edit right" do
-        diffs = [[:equal, "c"], [:insert, "ab"], [:equal, "a"]]
-        expect_cleanup_change(diffs, [[:equal, "ca"], [:insert, "ba"]])
+        diffs = [equal_node("c"), insert_node("ab"), equal_node("a")]
+        expect_cleanup_change(diffs, [equal_node("ca"), insert_node("ba")])
       end
 
       it "slide edit recursive" do
         diffs = [
-          [:equal, "a"], [:delete, "b"], [:equal, "c"],
-          [:delete, "ac"], [:equal, "x"]
+          equal_node("a"), delete_node("b"), equal_node("c"),
+          delete_node("ac"), equal_node("x")
         ]
 
-        expect_cleanup_change(diffs, [[:delete, "abc"], [:equal, "acx"]])
+        expect_cleanup_change(diffs, [delete_node("abc"), equal_node("acx")])
       end
 
       it "slide edit right recursive" do
         diffs = [
-          [:equal, "x"], [:delete, "ca"], [:equal, "c"],
-          [:delete, "b"], [:equal, "a"]
+          equal_node("x"), delete_node("ca"), equal_node("c"),
+          delete_node("b"), equal_node("a")
         ]
 
-        expect_cleanup_change(diffs, [[:equal, "xca"], [:delete, "cba"]])
+        expect_cleanup_change(diffs, [equal_node("xca"), delete_node("cba")])
       end
 
       context "when a Pre/suffix is detected" do
         it "unpacks insert and delete" do
-          diffs = [[:delete, "a"], [:insert, "abc"], [:delete, "dc"]]
-          expect_cleanup_change(diffs, [[:equal, "a"], [:delete, "d"], [:insert, "b"], [:equal, "c"]])
+          diffs = [delete_node("a"), insert_node("abc"), delete_node("dc")]
+          expect_cleanup_change(diffs, [equal_node("a"), delete_node("d"), insert_node("b"), equal_node("c")])
         end
 
         it "unpacks equalities" do
           diffs = [
-            [:equal, "x"], [:delete, "a"], [:insert, "abc"],
-            [:delete, "dc"], [:equal, "y"]
+            equal_node("x"), delete_node("a"), insert_node("abc"),
+            delete_node("dc"), equal_node("y")
           ]
 
-          expect_cleanup_change(diffs, [[:equal, "xa"], [:delete, "d"], [:insert, "b"], [:equal, "cy"]])
+          expect_cleanup_change(diffs, [equal_node("xa"), delete_node("d"), insert_node("b"), equal_node("cy")])
         end
       end
 
@@ -184,44 +184,44 @@ module GoogleDiffMatchPatch
 
       it "handel's blank lines" do
         diffs = [
-          [:equal, "AAA\r\n\r\nBBB"],
-          [:insert, "\r\nDDD\r\n\r\nBBB"],
-          [:equal, "\r\nEEE"]
+          equal_node("AAA\r\n\r\nBBB"),
+          insert_node("\r\nDDD\r\n\r\nBBB"),
+          equal_node("\r\nEEE")
         ]
 
         expect_semantic_change(
           diffs,
           [
-            [:equal, "AAA\r\n\r\n"],
-            [:insert, "BBB\r\nDDD\r\n\r\n"],
-            [:equal, "BBB\r\nEEE"]
+            equal_node("AAA\r\n\r\n"),
+            insert_node("BBB\r\nDDD\r\n\r\n"),
+            equal_node("BBB\r\nEEE")
           ]
         )
       end
 
       it "handel's line boundaries" do
-        diffs = [[:equal, "AAA\r\nBBB"], [:insert, " DDD\r\nBBB"], [:equal, " EEE"]]
-        expect_semantic_change(diffs, [[:equal, "AAA\r\n"], [:insert, "BBB DDD\r\n"], [:equal, "BBB EEE"]])
+        diffs = [equal_node("AAA\r\nBBB"), insert_node(" DDD\r\nBBB"), equal_node(" EEE")]
+        expect_semantic_change(diffs, [equal_node("AAA\r\n"), insert_node("BBB DDD\r\n"), equal_node("BBB EEE")])
       end
 
       it "handel's word boundaries" do
-        diffs = [[:equal, "The c"], [:insert, "ow and the c"], [:equal, "at."]]
-        expect_semantic_change(diffs, [[:equal, "The "], [:insert, "cow and the "], [:equal, "cat."]])
+        diffs = [equal_node("The c"), insert_node("ow and the c"), equal_node("at.")]
+        expect_semantic_change(diffs, [equal_node("The "), insert_node("cow and the "), equal_node("cat.")])
       end
 
       it "handel's alphanumeric boundaries" do
-        diffs = [[:equal, "The-c"], [:insert, "ow-and-the-c"], [:equal, "at."]]
-        expect_semantic_change(diffs, [[:equal, "The-"], [:insert, "cow-and-the-"], [:equal, "cat."]])
+        diffs = [equal_node("The-c"), insert_node("ow-and-the-c"), equal_node("at.")]
+        expect_semantic_change(diffs, [equal_node("The-"), insert_node("cow-and-the-"), equal_node("cat.")])
       end
 
       it "hits the start" do
-        diffs = [[:equal, "a"], [:delete, "a"], [:equal, "ax"]]
-        expect_semantic_change(diffs, [[:delete, "a"], [:equal, "aax"]])
+        diffs = [equal_node("a"), delete_node("a"), equal_node("ax")]
+        expect_semantic_change(diffs, [delete_node("a"), equal_node("aax")])
       end
 
       it "hits the end" do
-        diffs = [[:equal, "xa"], [:delete, "a"], [:equal, "a"]]
-        expect_semantic_change(diffs, [[:equal, "xaa"], [:delete, "a"]])
+        diffs = [equal_node("xa"), delete_node("a"), equal_node("a")]
+        expect_semantic_change(diffs, [equal_node("xaa"), delete_node("a")])
       end
 
       def expect_semantic_change(diffs, results)
@@ -237,70 +237,70 @@ module GoogleDiffMatchPatch
         end
 
         it "doesn't eliminate #1" do
-          diffs = [[:delete, "ab"], [:insert, "cd"], [:equal, "12"], [:delete, "e"]]
+          diffs = [delete_node("ab"), insert_node("cd"), equal_node("12"), delete_node("e")]
           expect { dmp.diff_cleanup_semantic(diffs) }.to_not change { diffs }
         end
 
         it "doesn't eliminate #2" do
           diffs = [
-            [:delete, "abc"], [:insert, "ABC"],
-            [:equal, "1234"], [:delete, "wxyz"]
+            delete_node("abc"), insert_node("ABC"),
+            equal_node("1234"), delete_node("wxyz")
           ]
           expect { dmp.diff_cleanup_semantic(diffs) }.to_not change { diffs }
         end
 
         it "does not do overlap elimination" do
-          diffs = [[:delete, "abcxx"], [:insert, "xxdef"]]
+          diffs = [delete_node("abcxx"), insert_node("xxdef")]
           expect { dmp.diff_cleanup_semantic(diffs) }.to_not change { diffs }
         end
       end
 
       context "When a change is made" do
         it "simple elmination" do
-          diffs = [[:delete, "a"], [:equal, "b"], [:delete, "c"]]
-          expect_semantic_change(diffs, [[:delete, "abc"], [:insert, "b"]])
+          diffs = [delete_node("a"), equal_node("b"), delete_node("c")]
+          expect_semantic_change(diffs, [delete_node("abc"), insert_node("b")])
         end
 
         it "backpass elmination" do
           diffs = [
-            [:delete, "ab"], [:equal, "cd"], [:delete, "e"],
-            [:equal, "f"], [:insert, "g"]
+            delete_node("ab"), equal_node("cd"), delete_node("e"),
+            equal_node("f"), insert_node("g")
           ]
 
-          expect_semantic_change(diffs, [[:delete, "abcdef"], [:insert, "cdfg"]])
+          expect_semantic_change(diffs, [delete_node("abcdef"), insert_node("cdfg")])
         end
 
         it "does multiple elminations" do
           diffs = [
-            [:insert, "1"], [:equal, "A"], [:delete, "B"],
-            [:insert, "2"], [:equal, "_"], [:insert, "1"],
-            [:equal, "A"], [:delete, "B"], [:insert, "2"]
+            insert_node("1"), equal_node("A"), delete_node("B"),
+            insert_node("2"), equal_node("_"), insert_node("1"),
+            equal_node("A"), delete_node("B"), insert_node("2")
           ]
 
-          expect_semantic_change(diffs, [[:delete, "AB_AB"], [:insert, "1A2_1A2"]])
+          expect_semantic_change(diffs, [delete_node("AB_AB"), insert_node("1A2_1A2")])
         end
 
         it "handel's word boundaires" do
-          diffs = [[:equal, "The c"], [:delete, "ow and the c"], [:equal, "at."]]
-          expect_semantic_change(diffs, [[:equal, "The "], [:delete, "cow and the "], [:equal, "cat."]])
+          diffs = [equal_node("The c"), delete_node("ow and the c"), equal_node("at.")]
+          expect_semantic_change(diffs, [equal_node("The "), delete_node("cow and the "), equal_node("cat.")])
         end
 
         it "does overlap elmination" do
-          diffs = [[:delete, "abcxxx"], [:insert, "xxxdef"]]
-          expect_semantic_change(diffs, [[:delete, "abc"], [:equal, "xxx"], [:insert, "def"]])
+          diffs = [delete_node("abcxxx"), insert_node("xxxdef")]
+          expect_semantic_change(diffs, [delete_node("abc"), equal_node("xxx"), insert_node("def")])
         end
 
         it "does two overlap elminations" do
           diffs = [
-            [:delete, "abcd1212"], [:insert, "1212efghi"], [:equal, "----"],
-            [:delete, "A3"], [:insert, "3BC"]
+            delete_node("abcd1212"), insert_node("1212efghi"), equal_node("----"),
+            delete_node("A3"), insert_node("3BC")
           ]
 
           expect_semantic_change(
             diffs,
             [
-              [:delete, "abcd"], [:equal, "1212"], [:insert, "efghi"],
-              [:equal, "----"], [:delete, "A"], [:equal, "3"], [:insert, "BC"]
+              delete_node("abcd"), equal_node("1212"), insert_node("efghi"),
+              equal_node("----"), delete_node("A"), equal_node("3"), insert_node("BC")
             ]
           )
         end
@@ -315,14 +315,14 @@ module GoogleDiffMatchPatch
       it "breaks apart word differences" do
         a     = "cat"
         b     = "map"
-        diffs = [[:delete, "c"], [:insert, "m"], [:equal, "a"], [:delete, "t"], [:insert, "p"]]
+        diffs = [delete_node("c"), insert_node("m"), equal_node("a"), delete_node("t"), insert_node("p")]
         expect(dmp.diff_bisect(a, b, nil)).to eq(diffs)
       end
 
       it "can time out" do
         a     = "cat"
         b     = "map"
-        expect(dmp.diff_bisect(a, b, Time.now - 1)).to eq([[:delete, "cat"], [:insert, "map"]])
+        expect(dmp.diff_bisect(a, b, Time.now - 1)).to eq([delete_node("cat"), insert_node("map")])
       end
     end
 
@@ -332,29 +332,29 @@ module GoogleDiffMatchPatch
       end
 
       it "can handel total equality strings" do
-        expect(dmp.diff_main("abc", "abc", false)).to eq([[:equal, "abc"]])
+        expect(dmp.diff_main("abc", "abc", false)).to eq([equal_node("abc")])
       end
 
       it "can handel simple insertion" do
-        expect(dmp.diff_main("abc", "ab123c", false)).to eq([[:equal, "ab"], [:insert, "123"], [:equal, "c"]])
+        expect(dmp.diff_main("abc", "ab123c", false)).to eq([equal_node("ab"), insert_node("123"), equal_node("c")])
       end
 
       it "can handel simple deletion" do
-        expect(dmp.diff_main("a123bc", "abc", false)).to eq([[:equal, "a"], [:delete, "123"], [:equal, "bc"]])
+        expect(dmp.diff_main("a123bc", "abc", false)).to eq([equal_node("a"), delete_node("123"), equal_node("bc")])
       end
 
       it "can handel multiple insertions" do
         diff = [
-          [:equal, "a"], [:insert, "123"], [:equal, "b"],
-          [:insert, "456"], [:equal, "c"]
+          equal_node("a"), insert_node("123"), equal_node("b"),
+          insert_node("456"), equal_node("c")
         ]
         expect(dmp.diff_main("abc", "a123b456c", false)).to eq(diff)
       end
 
       it "can handel multiple deletions" do
         diff = [
-          [:equal, "a"], [:delete, "123"], [:equal, "b"],
-          [:delete, "456"], [:equal, "c"]
+          equal_node("a"), delete_node("123"), equal_node("b"),
+          delete_node("456"), equal_node("c")
         ]
         expect(dmp.diff_main("a123b456c", "abc", false)).to eq(diff)
       end
@@ -363,13 +363,13 @@ module GoogleDiffMatchPatch
         before { dmp.diff_timeout = 0 }
 
         it "can handel simple case" do
-          expect(dmp.diff_main("a", "b", false)).to eq([[:delete, "a"], [:insert, "b"]])
+          expect(dmp.diff_main("a", "b", false)).to eq([delete_node("a"), insert_node("b")])
         end
 
         it "can handel a mixture of insertions and deletions in ascii" do
           diffs = [
-            [:delete, "Apple"], [:insert, "Banana"], [:equal, "s are a"],
-            [:insert, "lso"], [:equal, " fruit."]
+            delete_node("Apple"), insert_node("Banana"), equal_node("s are a"),
+            insert_node("lso"), equal_node(" fruit.")
           ]
 
           expect(dmp.diff_main("Apples are a fruit.", "Bananas are also fruit.", false)).to eq(diffs)
@@ -377,8 +377,8 @@ module GoogleDiffMatchPatch
 
         it "can handel a mixture of insertions and deletions in unicode" do
           diffs = [
-            [:delete, "a"], [:insert, "\u0680"], [:equal, "x"],
-            [:delete, "\t"], [:insert, "\0"]
+            delete_node("a"), insert_node("\u0680"), equal_node("x"),
+            delete_node("\t"), insert_node("\0")
           ]
 
           expect(dmp.diff_main("ax\t", "\u0680x\0", false)).to eq(diffs)
@@ -386,30 +386,36 @@ module GoogleDiffMatchPatch
 
         it "can handel overlaps" do
           diffs = [
-            [:delete, "1"], [:equal, "a"], [:delete, "y"],
-            [:equal, "b"], [:delete, "2"], [:insert, "xab"]
+            delete_node("1"), equal_node("a"), delete_node("y"),
+            equal_node("b"), delete_node("2"), insert_node("xab")
           ]
 
           expect(dmp.diff_main("1ayb2", "abxab", false)).to eq(diffs)
         end
 
         it "can handel prefix's" do
-          expect(dmp.diff_main("abcy", "xaxcxabc", false)).to eq([[:insert, "xaxcx"], [:equal, "abc"], [:delete, "y"]])
+          expect(dmp.diff_main("abcy", "xaxcxabc", false)).to eq([insert_node("xaxcx"), equal_node("abc"), delete_node("y")])
         end
 
         it "can handel suffix's" do
           diffs = [
-            [:delete, "ABCD"], [:equal, "a"], [:delete, "="], [:insert, "-"],
-            [:equal, "bcd"], [:delete, "="], [:insert, "-"],
-            [:equal, "efghijklmnopqrs"], [:delete, "EFGHIJKLMNOefg"]
+            delete_node("ABCD"),
+            equal_node("a"),
+            delete_node("="),
+            insert_node("-"),
+            equal_node("bcd"),
+            delete_node("="),
+            insert_node("-"),
+            equal_node("efghijklmnopqrs"),
+            delete_node("EFGHIJKLMNOefg")
           ]
           expect(dmp.diff_main("ABCDa=bcd=efghijklmnopqrsEFGHIJKLMNOefg", "a-bcd-efghijklmnopqrs", false)).to eq(diffs)
         end
 
         it "can handel large equalities" do
           diffs = [
-            [:insert, " "], [:equal, "a"], [:insert, "nd"],
-            [:equal, " [[Pennsylvania]]"], [:delete, " and [[New"]
+            insert_node(" "), equal_node("a"), insert_node("nd"),
+            equal_node(" [[Pennsylvania]]"), delete_node(" and [[New")
           ]
 
           expect(dmp.diff_main("a [[Pennsylvania]] and [[New", " and [[Pennsylvania]]", false)).to eq(diffs)
@@ -449,6 +455,18 @@ module GoogleDiffMatchPatch
           expect(dmp.diff_text1(dmp.diff_main(a, b, false))).to eq(dmp.diff_text1(dmp.diff_main(a, b, true)))
         end
       end
+    end
+
+    def delete_node(text)
+      Diff::Node.new(:DELETE, text)
+    end
+
+    def insert_node(text)
+      Diff::Node.new(:INSERT, text)
+    end
+
+    def equal_node(text)
+      Diff::Node.new(:EQUAL, text)
     end
   end
 end
