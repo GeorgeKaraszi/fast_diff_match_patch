@@ -470,12 +470,12 @@ module GoogleDiffMatchPatch
 
       while pointer < diffs.length
         if diffs[pointer].is_equal? # Equality found.
-          equalities.push(pointer)
           length_insertions1 = length_insertions2
           length_deletions1  = length_deletions2
           length_insertions2 = 0
           length_deletions2  = 0
           last_equality      = diffs[pointer].text
+          equalities << pointer
         else # An insertion or deletion.
           if diffs[pointer].is_insert?
             length_insertions2 += diffs[pointer].text.length
@@ -665,7 +665,7 @@ module GoogleDiffMatchPatch
             pre_ins       = post_ins
             pre_del       = post_del
             last_equality = diffs[pointer].text
-            equalities   << pointer
+            equalities << pointer
           else
             # Not a candidate, and can never become one.
             equalities.clear
