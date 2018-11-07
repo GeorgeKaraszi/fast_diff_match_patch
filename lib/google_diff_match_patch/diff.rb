@@ -488,7 +488,7 @@ module GoogleDiffMatchPatch
 
           if !last_equality.nil? && last_equality.length <= maximum_min_length
             diffs[equalities.last, 0] = [new_delete_node(last_equality)] # Duplicate record.
-            diffs[equalities.last + 1].as_insert!                      # Change second copy to insert.
+            diffs[equalities.last + 1].to_insert!                      # Change second copy to insert.
             equalities.pop(2)                                          # Throw away the equality we just deleted.
             pointer = equalities.last || -1
 
@@ -688,7 +688,7 @@ module GoogleDiffMatchPatch
 
           if !last_equality.empty? && (pre_post_count == 4 || ((last_equality.length < diff_edit_cost / 2) && pre_post_count == 3))
             diffs[equalities.last, 0] = [new_delete_node(last_equality)] # Duplicate record.
-            diffs[equalities.last + 1].as_insert!                        # Change second copy to insert.
+            diffs[equalities.last + 1].to_insert!                        # Change second copy to insert.
             equalities.pop                                               # Throw away the equality we just deleted
             last_equality = ""
             if pre_ins && pre_del
@@ -836,12 +836,12 @@ module GoogleDiffMatchPatch
 
     # Compute and return the source text (all equalities and deletions).
     def diff_text1(diffs)
-      diffs.map { |diff| diff.is_insert? ? "" : diff.text }.join
+      diffs.map { |diff| diff.text2_change? ? "" : diff.text }.join
     end
 
     # Compute and return the destination text (all equalities and insertions).
     def diff_text2(diffs)
-      diffs.map { |diff| diff.is_delete? ? "" : diff.text }.join
+      diffs.map { |diff| diff.text1_change? ? "" : diff.text }.join
     end
 
     # Compute the Levenshtein distance; the number of inserted, deleted or

@@ -16,7 +16,7 @@ module GoogleDiffMatchPatch
           operation == opt
         end
 
-        define_method("as_#{method}!") do
+        define_method("to_#{method}!") do
           self.operation = opt
         end
       end
