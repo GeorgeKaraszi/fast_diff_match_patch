@@ -523,8 +523,8 @@ module GoogleDiffMatchPatch
       pointer = 1
       while pointer < diffs.length
         if diffs[pointer - 1].is_delete? && diffs[pointer].is_insert?
-          deletion = diffs[pointer - 1].text
-          insertion = diffs[pointer].text
+          deletion        = diffs[pointer - 1].text
+          insertion       = diffs[pointer].text
           overlap_length1 = diff_common_overlap(deletion, insertion)
           overlap_length2 = diff_common_overlap(insertion, deletion)
           if overlap_length1 >= overlap_length2 && (overlap_length1 >= deletion.length / 2.0 || overlap_length1 >= insertion.length / 2.0)
@@ -534,7 +534,7 @@ module GoogleDiffMatchPatch
             diffs[pointer + 1] = new_insert_node(insertion[overlap_length1..-1])
             pointer += 1
           elsif overlap_length2 >= deletion.length / 2.0 || overlap_length2 >= insertion.length / 2.0
-            diffs[pointer, 0] = [new_equal_node(deletion[0...overlap_length2])]
+            diffs[pointer, 0]  = [new_equal_node(deletion[0...overlap_length2])]
             diffs[pointer - 1] = new_insert_node(insertion[0...-overlap_length2])
             diffs[pointer + 1] = new_delete_node(deletion[overlap_length2..-1])
             pointer += 1
@@ -826,9 +826,9 @@ module GoogleDiffMatchPatch
 
     # Convert a diff array into a pretty HTML report.
     def diff_pretty_html(diffs)
-      diffs.map do |op, data|
-        text = data.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;").gsub('\n', "&para;<br>")
-        case op
+      diffs.map do |diff|
+        text = diff.text.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;").gsub('\n', "&para;<br>")
+        case diff.operation
         when :INSERT
           "<ins style=\"background:#e6ffe6;\">#{text}</ins>"
         when :DELETE
@@ -841,24 +841,12 @@ module GoogleDiffMatchPatch
 
     # Compute and return the source text (all equalities and deletions).
     def diff_text1(diffs)
-      diffs.map do |op, data|
-        if op == :INSERT
-          ""
-        else
-          data
-        end
-      end.join
+      diffs.map { |diff| diff.is_insert? ? "" : diff.text }.join
     end
 
     # Compute and return the destination text (all equalities and insertions).
     def diff_text2(diffs)
-      diffs.map do |op, data|
-        if op == :DELETE
-          ""
-        else
-          data
-        end
-      end.join
+      diffs.map { |diff| diff.is_delete? ? "" : diff.text }.join
     end
 
     # Compute the Levenshtein distance; the number of inserted, deleted or
@@ -868,12 +856,12 @@ module GoogleDiffMatchPatch
       insertions  = 0
       deletions   = 0
 
-      diffs.each do |op, data|
-        case op
+      diffs.each do |diff|
+        case diff.operation
         when :INSERT
-          insertions += data.length
+          insertions += diff.text.length
         when :DELETE
-          deletions += data.length
+          deletions += diff.text.length
         else # equal
           # A deletion and an insertion is one substitution.
           levenshtein += [insertions, deletions].max
@@ -890,14 +878,14 @@ module GoogleDiffMatchPatch
     # E.g. =3\t-2\t+ing  -> Keep 3 chars, delete 2 chars, insert 'ing'.
     # Operations are tab-separated.  Inserted text is escaped using %xx notation.
     def diff_to_delta(diffs)
-      diffs.map do |op, data|
-        case op
+      diffs.map do |diff|
+        case diff.operation
         when :INSERT
-          "+#{URI.encode(data, %r{[^0-9A-Za-z_.;!~*'(),\/?:@&=+$#-]})}"
+          "+#{URI.encode(diff.text, %r{[^0-9A-Za-z_.;!~*'(),\/?:@&=+$#-]})}"
         when :DELETE
-          "-#{data.length}"
+          "-#{diff.text.length}"
         else # equal
-          "=#{data.length}"
+          "=#{diff.text.length}"
         end
       end.join("\t").gsub("%20", " ")
     end
