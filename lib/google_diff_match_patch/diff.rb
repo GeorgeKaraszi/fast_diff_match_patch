@@ -84,12 +84,8 @@ module GoogleDiffMatchPatch
         return [new_delete_node(text1), new_insert_node(text2)]
       end
 
-      # Garbage collect.
-      long_text  = nil
-      short_text = nil
-      hm         = diff_half_match(text1, text2)
-
       # Check to see if the problem can be split in two.
+      hm = diff_half_match(text1, text2)
       unless hm.nil?
         # A half-match was found, sort out the return data.
         text1_a, text1_b, text2_a, text2_b, mid_common = hm
@@ -577,7 +573,7 @@ module GoogleDiffMatchPatch
             score += 1
             # Four points for blank lines.
             if one =~ line_end || two =~ line_start
-              score += 1 if one =~ line_end || two =~ line_start
+              score += 1
             end
           end
         end
@@ -613,13 +609,13 @@ module GoogleDiffMatchPatch
           best_edit      = edit
           best_equality2 = equality2
           best_score     = diff_cleanup_semantic_score(equality1, edit) + diff_cleanup_semantic_score(edit, equality2)
+
           while edit[0] == equality2[0]
             equality1 += edit[0]
             edit      = edit[1..-1] + equality2[0]
             equality2 = equality2[1..-1]
             score     = diff_cleanup_semantic_score(equality1, edit) + diff_cleanup_semantic_score(edit, equality2)
-            # The >= encourages trailing rather than leading whitespace on edits.
-            next unless score >= best_score
+            next unless score >= best_score # The >= encourages trailing rather than leading whitespace on edits.
 
             best_score     = score
             best_equality1 = equality1
@@ -653,10 +649,10 @@ module GoogleDiffMatchPatch
 
     # Reduce the number of edits by eliminating operationally trivial equalities.
     def diff_cleanup_efficiency(diffs)
-      changes       = false
-      equalities    = [] # Stack of indices where equalities are found.
-      last_equality = "" # Always equal to equalities.last[1]
-      pointer       = 0 # Index of current position.
+      changes       = false # flag used to know if we changed the diffs and need to run `diff_cleanup_merge`
+      equalities    = []    # Stack of indices where equalities are found.
+      last_equality = ""    # Always equal to equalities.last[1]
+      pointer       = 0     # Index of current position.
       pre_ins       = false # Is there an insertion operation before the last equality.
       pre_del       = false # Is there a deletion operation before the last equality.
       post_ins      = false # Is there an insertion operation after the last equality.
@@ -666,10 +662,10 @@ module GoogleDiffMatchPatch
         if diffs[pointer].is_equal? # Equality found.
           if diffs[pointer].text.length < diff_edit_cost && (post_ins || post_del)
             # Candidate found.
-            equalities.push(pointer)
             pre_ins       = post_ins
             pre_del       = post_del
             last_equality = diffs[pointer].text
+            equalities   << pointer
           else
             # Not a candidate, and can never become one.
             equalities.clear
@@ -694,8 +690,8 @@ module GoogleDiffMatchPatch
 
           if !last_equality.empty? && (pre_post_count == 4 || ((last_equality.length < diff_edit_cost / 2) && pre_post_count == 3))
             diffs[equalities.last, 0] = [new_delete_node(last_equality)] # Duplicate record.
-            diffs[equalities.last + 1].as_insert!                    # Change second copy to insert.
-            equalities.pop                                           # Throw away the equality we just deleted
+            diffs[equalities.last + 1].as_insert!                        # Change second copy to insert.
+            equalities.pop                                               # Throw away the equality we just deleted
             last_equality = ""
             if pre_ins && pre_del
               # No changes made which could affect previous entry, keep going.
@@ -888,7 +884,7 @@ module GoogleDiffMatchPatch
         else # equal
           "=#{diff.text.length}"
         end
-      end.join("\t").gsub("%20", " ")
+      end.join("\t").tr("%20", " ")
     end
 
     private
