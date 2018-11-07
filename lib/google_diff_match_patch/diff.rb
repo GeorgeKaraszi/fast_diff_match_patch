@@ -32,16 +32,16 @@ module GoogleDiffMatchPatch
       common_length = diff_common_prefix(text1, text2)
       if common_length.nonzero?
         common_prefix = text1[0...common_length]
-        text1 = text1[common_length..-1]
-        text2 = text2[common_length..-1]
+        text1         = text1[common_length..-1]
+        text2         = text2[common_length..-1]
       end
 
       # Trim off common suffix (speedup).
       common_length = diff_common_suffix(text1, text2)
       if common_length.nonzero?
         common_suffix = text1[-common_length..-1]
-        text1 = text1[0...-common_length]
-        text2 = text2[0...-common_length]
+        text1         = text1[0...-common_length]
+        text2         = text2[0...-common_length]
       end
 
       # Compute the diff on the middle block.
@@ -131,10 +131,10 @@ module GoogleDiffMatchPatch
         case diffs[pointer].operation
         when :INSERT
           count_insert += 1
-          text_insert += diffs[pointer].text
+          text_insert  += diffs[pointer].text
         when :DELETE
           count_delete += 1
-          text_delete += diffs[pointer].text
+          text_delete  += diffs[pointer].text
         else # equal
           # Upon reaching an equality, check for prior redundancies.
           if count_delete.positive? && count_insert.positive?
@@ -690,8 +690,8 @@ module GoogleDiffMatchPatch
           # <ins>A</ins><del>B</del>X<ins>C</ins>
           # <ins>A</del>X<ins>C</ins><del>D</del>
           # <ins>A</ins><del>B</del>X<del>C</del>
-
           pre_post_count = [pre_ins, pre_del, post_ins, post_del].count(true)
+
           if !last_equality.empty? && (pre_post_count == 4 || ((last_equality.length < diff_edit_cost / 2) && pre_post_count == 3))
             diffs[equalities.last, 0] = [new_delete_node(last_equality)] # Duplicate record.
             diffs[equalities.last + 1].as_insert!                    # Change second copy to insert.
@@ -827,7 +827,8 @@ module GoogleDiffMatchPatch
     # Convert a diff array into a pretty HTML report.
     def diff_pretty_html(diffs)
       diffs.map do |diff|
-        text = diff.text.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;").gsub('\n', "&para;<br>")
+        text = diff.text.tr("&", "&amp;").tr("<", "&lt;").tr(">", "&gt;").tr("\n", "&para;<br>")
+
         case diff.operation
         when :INSERT
           "<ins style=\"background:#e6ffe6;\">#{text}</ins>"
