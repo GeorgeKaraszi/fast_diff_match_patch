@@ -50,7 +50,9 @@ module GoogleDiffMatchPatch
       # Restore the prefix and suffix.
       diffs.unshift(new_equal_node(common_prefix)) unless common_prefix.nil?
       diffs << new_equal_node(common_suffix)       unless common_suffix.nil?
-      diffs.tap(&method(:diff_cleanup_merge))
+      diff_cleanup_merge(diffs)
+
+      diffs
     end
 
     # Find the differences between two texts.  Assumes that the texts do not
@@ -280,7 +282,7 @@ module GoogleDiffMatchPatch
       line_array = [""]  # e.g. line_array[4] == "Hello\n"
       line_hash = {}     # e.g. line_hash["Hello\n"] == 4
 
-      [text1, text2].map do |text|
+      encoded_strings = [text1, text2].map do |text|
         # Split text into an array of strings.  Reduce the text to a string of
         # hashes where each Unicode character represents one line.
         chars = ""
@@ -294,13 +296,15 @@ module GoogleDiffMatchPatch
           end
         end
         chars
-      end.push(line_array)
+      end
+
+      encoded_strings << line_array
     end
 
     # Rehydrate the text in a diff from a string of line hashes to real lines of text.
     def diff_chars_to_lines(diffs, line_array)
       diffs.each do |diff|
-        diff[1] = diff[1].chars.map { |c| line_array[c.ord] }.join
+        diff.text = diff.text.chars.map { |c| line_array[c.ord] }.join
       end
     end
 
