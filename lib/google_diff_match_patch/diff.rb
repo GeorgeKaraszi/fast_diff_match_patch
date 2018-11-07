@@ -50,9 +50,7 @@ module GoogleDiffMatchPatch
       # Restore the prefix and suffix.
       diffs.unshift(new_equal_node(common_prefix)) unless common_prefix.nil?
       diffs << new_equal_node(common_suffix)       unless common_suffix.nil?
-      diff_cleanup_merge(diffs)
-
-      diffs
+      diffs.tap(&method(:diff_cleanup_merge))
     end
 
     # Find the differences between two texts.  Assumes that the texts do not
