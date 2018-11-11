@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "google_diff_match_patch"
+require "google_diff_match_patch/google_diff_match_patch"
 
 # rubocop:disable Metrics/BlockNesting
 module GoogleDiffMatchPatch
