@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "google_diff_match_patch/google_diff_match_patch"
-
 # rubocop:disable Metrics/BlockNesting
 module GoogleDiffMatchPatch
   class Diff
