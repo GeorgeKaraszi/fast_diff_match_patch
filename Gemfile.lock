@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    google_diff_match_patch (0.5.0)
+    google_diff_match_patch (0.5.5)
 
 GEM
   remote: https://rubygems.org/
