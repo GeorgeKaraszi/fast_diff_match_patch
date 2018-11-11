@@ -65,14 +65,30 @@ static DMPString rb_str_to_dmp_str(VALUE text) {
     const VALUE *char_array_ptr  = RARRAY_PTR(char_array);
     const int char_array_len     = RARRAY_LENINT(char_array);
     const DMPString dmp_string   = { char_array_len, xcalloc((size_t)char_array_len, (sizeof(DMPBytes))) };
+    VALUE bytes_array;
+    VALUE *bytes_array_ptr;
+    long byte_size;
     int i = 0;
     int j = 0;
 
     for(i = 0; i < char_array_len; i++) {
         // Convert character to array of bytes `"a".bytes #=> [97]`
-        VALUE bytes_array         = RB_FUNC_CALL(char_array_ptr[i], dmp_bytes_id);
-        VALUE *bytes_array_ptr    = RARRAY_PTR(bytes_array);
-        long byte_size            = RARRAY_LEN(bytes_array);
+        if(TYPE(char_array_ptr[i]) != T_STRING) {
+        #ifdef DMP_DEBUG
+            rb_p(text);
+            printf("END\n");
+            rb_p(char_array_ptr[i]);
+            rb_p(char_array);
+            printf("FINAL\n");
+        #endif
+
+            bytes_array = char_array_ptr[i];
+        } else {
+            bytes_array  = RB_FUNC_CALL(char_array_ptr[i], dmp_bytes_id);
+        }
+
+        bytes_array_ptr           = RARRAY_PTR(bytes_array);
+        byte_size                 = RARRAY_LEN(bytes_array);
         dmp_string.chars[i].size  = (int)bytes_array;
 
         // Convert and copy each byte array element over to our own byte array
