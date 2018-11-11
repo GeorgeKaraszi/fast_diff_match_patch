@@ -10,7 +10,9 @@ module GoogleDiffMatchPatch
       t1 = Time.now
       dmp.diff_main(file_a, file_b)
       t2 = Time.now
-      expect(t2 - t1).to be_between(0, 0.2)
+
+      puts "Completed in: #{t2-t1}"
+      expect(t2 - t1).to be_between(0, 0.5)
     end
   end
 end
