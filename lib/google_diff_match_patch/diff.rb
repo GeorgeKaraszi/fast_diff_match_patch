@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "google_diff_match_patch"
+
 # rubocop:disable Metrics/BlockNesting
 module GoogleDiffMatchPatch
   class Diff
@@ -43,7 +45,6 @@ module GoogleDiffMatchPatch
         text1         = text1[0...-common_length]
         text2         = text2[0...-common_length]
       end
-
       # Compute the diff on the middle block.
       diffs = diff_compute(text1, text2, check_lines, deadline)
 
@@ -110,7 +111,6 @@ module GoogleDiffMatchPatch
       # Scan the text on a line-by-line basis first.
       text1, text2, line_array = diff_lines_to_chars(text1, text2)
       diffs = diff_main(text1, text2, false, deadline)
-
       diff_chars_to_lines(diffs, line_array) # Convert the diff back to original text.
       diff_cleanup_semantic(diffs)           # Eliminate freak matches (e.g. blank lines)
 
@@ -151,115 +151,6 @@ module GoogleDiffMatchPatch
 
       diffs.tap(&:pop) # Remove the dummy entry at the end.
     end
-
-    # Find the 'middle snake' of a diff, split the problem in two
-    # and return the recursively constructed diff.
-    # See Myers 1986 paper: An O(ND) Difference Algorithm and Its Variations.
-
-    # rubocop:disable Style/ConditionalAssignment
-    def diff_bisect(text1, text2, deadline)
-      # Cache the text lengths to prevent multiple calls.
-      text1_length     = text1.length
-      text2_length     = text2.length
-      delta            = text1_length - text2_length
-      max_d            = (text1_length + text2_length + 1) / 2
-      v_offset         = max_d
-      v_length         = 2 * max_d
-      v1               = Array.new(v_length, -1)
-      v2               = Array.new(v_length, -1)
-      v1[v_offset + 1] = 0
-      v2[v_offset + 1] = 0
-
-      # If the total number of characters is odd, then the front path will
-      # collide with the reverse path.
-      front = delta.odd?
-      # Offsets for start and end of k loop.
-      # Prevents mapping of space beyond the grid.
-      k1start = 0
-      k1end   = 0
-      k2start = 0
-      k2end   = 0
-      0.upto(max_d - 1) do |d|
-        # Bail out if deadline is reached.
-        break if deadline && Time.now >= deadline
-
-        # Walk the front path one step.
-        (-d + k1start).step(d - k1end, 2) do |k1|
-          k1_offset = v_offset + k1
-          if k1 == -d || k1 != d && v1[k1_offset - 1] < v1[k1_offset + 1]
-            x1 = v1[k1_offset + 1]
-          else
-            x1 = v1[k1_offset - 1] + 1
-          end
-
-          y1 = x1 - k1
-          while x1 < text1_length && y1 < text2_length && text1[x1] == text2[y1]
-            x1 += 1
-            y1 += 1
-          end
-
-          v1[k1_offset] = x1
-          if x1 > text1_length
-            # Ran off the right of the graph.
-            k1end += 2
-          elsif y1 > text2_length
-            # Ran off the bottom of the graph.
-            k1start += 2
-          elsif front
-            k2_offset = v_offset + delta - k1
-            if k2_offset >= 0 && k2_offset < v_length && v2[k2_offset] != -1
-              # Mirror x2 onto top-left coordinate system.
-              x2 = text1_length - v2[k2_offset]
-              if x1 >= x2
-                # Overlap detected.
-                return diff_bisect_split(text1, text2, x1, y1, deadline)
-              end
-            end
-          end
-        end
-
-        # Walk the reverse path one step.
-        (-d + k2start).step(d - k2end, 2) do |k2|
-          k2_offset = v_offset + k2
-          if k2 == -d || k2 != d && v2[k2_offset - 1] < v2[k2_offset + 1]
-            x2 = v2[k2_offset + 1]
-          else
-            x2 = v2[k2_offset - 1] + 1
-          end
-
-          y2 = x2 - k2
-          while x2 < text1_length && y2 < text2_length && text1[-x2 - 1] == text2[-y2 - 1]
-            x2 += 1
-            y2 += 1
-          end
-
-          v2[k2_offset] = x2
-          if x2 > text1_length
-            # Ran off the left of the graph.
-            k2end += 2
-          elsif y2 > text2_length
-            # Ran off the top of the graph.
-            k2start += 2
-          elsif !front
-            k1_offset = v_offset + delta - k2
-            if k1_offset >= 0 && k1_offset < v_length && v1[k1_offset] != -1
-              x1 = v1[k1_offset]
-              y1 = v_offset + x1 - k1_offset
-              x2 = text1_length - x2 # Mirror x2 onto top-left coordinate system.
-              if x1 >= x2
-                # Overlap detected.
-                return diff_bisect_split(text1, text2, x1, y1, deadline)
-              end
-            end
-          end
-        end
-      end
-
-      # Diff took too long and hit the deadline or
-      # number of diffs equals number of characters, no commonality at all.
-      [new_delete_node(text1), new_insert_node(text2)]
-    end
-    # rubocop:enable Style/ConditionalAssignment
 
     # Given the location of the 'middle snake', split the diff in two parts
     # and recurse.

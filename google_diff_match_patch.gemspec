@@ -15,11 +15,13 @@ Gem::Specification.new do |spec|
   spec.homepage      = ""
   spec.license       = "MIT"
 
-  spec.files         = Dir["README.md", "lib/**/*"]
+  spec.files         = Dir["README.md", "lib/**/*", "ext/**/*"]
   spec.test_files    = `git ls-files -- spec/*`.split("\n")
   spec.require_paths = ["lib"]
+  spec.extensions    = "ext/google_diff_match_patch/extconf.rb"
 
   spec.add_development_dependency "bundler", "~> 1.16"
   spec.add_development_dependency "rake", "~> 10.0"
+  spec.add_development_dependency "rake-compiler"
   spec.add_development_dependency "rspec", "~> 3.0"
 end
