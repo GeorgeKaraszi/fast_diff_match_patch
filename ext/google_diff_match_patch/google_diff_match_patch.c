@@ -65,8 +65,10 @@ static DMPString rb_str_to_dmp_str(VALUE text) {
     const VALUE *char_array_ptr  = RARRAY_PTR(char_array);
     const int char_array_len     = RARRAY_LENINT(char_array);
     const DMPString dmp_string   = { char_array_len, xcalloc((size_t)char_array_len, (sizeof(DMPBytes))) };
+    int i = 0;
+    int j = 0;
 
-    for(int i = 0; i < char_array_len; i++) {
+    for(i = 0; i < char_array_len; i++) {
         // Convert character to array of bytes `"a".bytes #=> [97]`
         VALUE bytes_array         = RB_FUNC_CALL(char_array_ptr[i], dmp_bytes_id);
         VALUE *bytes_array_ptr    = RARRAY_PTR(bytes_array);
@@ -74,7 +76,7 @@ static DMPString rb_str_to_dmp_str(VALUE text) {
         dmp_string.chars[i].size  = (int)bytes_array;
 
         // Convert and copy each byte array element over to our own byte array
-        for(int j = 0; j < byte_size; j++) {
+        for(j = 0; j < byte_size; j++) {
             dmp_string.chars[i].bytes[j] = RB_FIX2SHORT(bytes_array_ptr[j]);
         }
 
@@ -112,18 +114,21 @@ static VALUE diff_bisect(VALUE self, VALUE text1, VALUE text2, VALUE deadline) {
     int x2        = 0;
     int y1        = 0;
     int y2        = 0;
+    int d         = 0;
+    int k1        = 0;
+    int k2        = 0;
 
     memset(v1, -1, v_length * sizeof(int));
     memset(v2, -1, v_length * sizeof(int));
     v1[v_offset + 1] = 0;
     v2[v_offset + 1] = 0;
 
-    for(int d = 0; d < max_d; d++) {
+    for(d = 0; d < max_d; d++) {
         if(deadline_l != Qnil && time_now() >= deadline_l) {
             break;
         }
 
-        for(int k1 = -d + k1start; k1 <= d - k1end; k1 += 2) {
+        for(k1 = -d + k1start; k1 <= d - k1end; k1 += 2) {
             k1_offset = v_offset + k1;
             if(k1 == -d || (k1 != d && v1[k1_offset - 1] < v1[k1_offset + 1])) {
                 x1 = v1[k1_offset + 1];
@@ -157,7 +162,7 @@ static VALUE diff_bisect(VALUE self, VALUE text1, VALUE text2, VALUE deadline) {
             }
         }
 
-        for(int k2 = -d + k2start; k2 <= d - k2end; k2 += 2) {
+        for(k2 = -d + k2start; k2 <= d - k2end; k2 += 2) {
             k2_offset = v_offset + k2;
             if(k2 == -d || (k2 != d && v2[k2_offset - 1] < v2[k2_offset + 1])){
                 x2 = v2[k2_offset + 1];
