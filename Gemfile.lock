@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    google_diff_match_patch (0.5.5)
+    google_diff_match_patch (0.6.0)
 
 GEM
   remote: https://rubygems.org/
@@ -64,4 +64,4 @@ DEPENDENCIES
   rubocop (~> 0.52)
 
 BUNDLED WITH
-   1.16.6
+   1.17.1
