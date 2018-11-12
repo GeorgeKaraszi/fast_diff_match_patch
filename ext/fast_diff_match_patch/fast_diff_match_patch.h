@@ -1,5 +1,5 @@
-#ifndef GOOGLE_DIFF_MATCH_PATCH_H
-#define GOOGLE_DIFF_MATCH_PATCH_H 1
+#ifndef FAST_DIFF_MATCH_PATCH_H
+#define FAST_DIFF_MATCH_PATCH_H 1
 
 #include <stdbool.h>
 #include "ruby.h"
@@ -21,4 +21,4 @@ typedef struct DMPString {
 } DMPString;
 
 
-#endif /* GOOGLE_DIFF_MATCH_PATCH_H */
+#endif /* FAST_DIFF_MATCH_PATCH_H */
