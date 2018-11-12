@@ -10,5 +10,5 @@ group :development, :test do
   gem "rubocop", "~> 0.52", require: false
 end
 
-# Specify your gem's dependencies in google_diff_match_patch.gemspec
+# Specify your gem's dependencies in fast_diff_match_patch.gemspec
 gemspec

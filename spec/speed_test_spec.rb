@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module GoogleDiffMatchPatch
+module FastDiffMatchPatch
   RSpec.describe "Speed Test" do
     let!(:dmp)    { Diff.new }
     let!(:file_a) { File.read("spec/fixtures/speed1.txt") }

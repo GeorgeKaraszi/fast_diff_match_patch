@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # rubocop:disable Metrics/BlockNesting
-module GoogleDiffMatchPatch
+module FastDiffMatchPatch
   class Diff
     attr_accessor :diff_timeout, :diff_edit_cost
 

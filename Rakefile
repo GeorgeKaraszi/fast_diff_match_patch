@@ -9,8 +9,8 @@ require "rake/extensiontask"
 
 task build: :compile
 
-Rake::ExtensionTask.new("google_diff_match_patch") do |ext|
-  ext.lib_dir = "lib/google_diff_match_patch"
+Rake::ExtensionTask.new("fast_diff_match_patch") do |ext|
+  ext.lib_dir = "lib/fast_diff_match_patch"
 end
 
 task default: [:clobber, :compile, :spec]

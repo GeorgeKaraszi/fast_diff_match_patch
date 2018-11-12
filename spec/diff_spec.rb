@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-module GoogleDiffMatchPatch
+module FastDiffMatchPatch
   RSpec.describe Diff do
     let(:dmp) { described_class.new }
 

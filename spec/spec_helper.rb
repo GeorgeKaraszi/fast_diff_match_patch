@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "bundler/setup"
-require "google_diff_match_patch"
+require "fast_diff_match_patch"
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure

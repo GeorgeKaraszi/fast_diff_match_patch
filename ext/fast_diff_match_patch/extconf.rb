@@ -3,7 +3,7 @@
 require "mkmf"
 require "rbconfig"
 
-extension_name = "google_diff_match_patch"
+extension_name = "fast_diff_match_patch"
 
 dir_config(extension_name)
 

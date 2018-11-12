@@ -1,4 +1,4 @@
-#include "google_diff_match_patch.h"
+#include "fast_diff_match_patch.h"
 
 VALUE dmp_diff;
 VALUE dmp_time_klass;
@@ -12,16 +12,16 @@ ID dmp_chars_id;
 ID dmp_bytes_id;
 
 
-void Init_google_diff_match_patch();
+void Init_fast_diff_match_patch();
 static VALUE diff_bisect(VALUE self, VALUE text1, VALUE text2, VALUE deadline);
 
-void Init_google_diff_match_patch()
+void Init_fast_diff_match_patch()
 {
-    VALUE dmp = rb_define_module("GoogleDiffMatchPatch");
+    VALUE dmp = rb_define_module("FastDiffMatchPatch");
     dmp_diff  = rb_define_class_under(dmp, "Diff", rb_cObject);
     rb_define_method(dmp_diff, "diff_bisect", RUBY_METHOD_FUNC(diff_bisect), 3);
 
-    rb_require("google_diff_match_patch/diff");
+    rb_require("fast_diff_match_patch/diff");
     rb_require("time");
 
     dmp_time_klass           = rb_const_get(rb_cObject, rb_intern("Time"));

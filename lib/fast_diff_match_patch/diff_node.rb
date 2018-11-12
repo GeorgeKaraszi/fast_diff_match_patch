@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module GoogleDiffMatchPatch
+module FastDiffMatchPatch
   class Diff
     VALID_OPERATIONS = [:INSERT, :DELETE, :EQUAL].to_set.freeze
     Node = Struct.new(:operation, :text) do
