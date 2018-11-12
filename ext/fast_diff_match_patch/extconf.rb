@@ -30,6 +30,7 @@ puts ">>>>> Creating Makefile for #{type} version #{RUBY_VERSION} on #{platform}
   end
 end
 
+$CPPFLAGS += " -D DMP_DEBUG" if ENV["CI"] || ENV["DMP_DEBUG"]
 $CPPFLAGS += " -Wall"
 
 create_makefile(File.join(extension_name, extension_name))
