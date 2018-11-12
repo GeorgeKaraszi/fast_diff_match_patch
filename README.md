@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/GeorgeKaraszi/fast_diff_match_patch.svg?branch=master)](https://travis-ci.com/GeorgeKaraszi/fast_diff_match_patch)
+
 # FastDiffMatchPatch
 
 ##TBD
