@@ -47,12 +47,6 @@ static long time_now() {
     return rb_to_i(RB_FUNC_CALL(dmp_time_klass, dmp_time_now_id));
 }
 
-// Compares UTF_8 string at a piratical index to determine if they are equal
-// Ruby equivalent code: "a" == "b"
-static bool dmp_str_cmp(DMPString text1, DMPString text2, int idx_txt1, int idx_txt2) {
-    return DMP_STR_CMP(text1.chars[idx_txt1].bytes, text2.chars[idx_txt2].bytes);
-}
-
 static void free_dmp_strings(DMPString *dmp_text1, DMPString *dmp_text2) {
     xfree(dmp_text1->chars);
     xfree(dmp_text2->chars);
@@ -60,40 +54,29 @@ static void free_dmp_strings(DMPString *dmp_text1, DMPString *dmp_text2) {
 
 // Convert UTF8 Ruby string into C byte array
 // Ruby equivalent code:  #=> "ὂ᭚".chars => ["ὂ", "᭚"].map(&:bytes) #=> [[225, 189, 130], [225, 173, 154]]
-static DMPString rb_str_to_dmp_str(VALUE text) {
-    const VALUE char_array       = RB_FUNC_CALL(text, dmp_chars_id); // Convert string to char `"Hey".chars`
-    const VALUE *char_array_ptr  = RARRAY_PTR(char_array);
-    const int char_array_len     = RARRAY_LENINT(char_array);
-    const DMPString dmp_string   = { char_array_len, xcalloc((size_t)char_array_len, (sizeof(DMPBytes))) };
-    VALUE bytes_array;
-    VALUE *bytes_array_ptr;
-    long byte_size;
-    int i = 0;
-    int j = 0;
+static DMPString rb_str_to_dmp_str(const VALUE text) {
+    // Ruby equivalent code: "Hey".chars #=> ['H', 'e', 'y']
+    const VALUE char_array     = RB_FUNC_CALL(text, dmp_chars_id);
+    const int char_array_len   = RARRAY_LENINT(char_array);
+    const DMPString dmp_string = { char_array_len, xcalloc((size_t)char_array_len, (sizeof(DMPBytes))) };
+    VALUE bytes_array          = 0;
+    VALUE char_ary_idx         = 0;
+    VALUE byte_ary_idx         = 0;
+    int byte_ary_size          = 0;
+    int i                      = 0;
+    int j                      = 0;
 
     for(i = 0; i < char_array_len; i++) {
-        // Convert character to array of bytes `"a".bytes #=> [97]`
-        if(TYPE(char_array_ptr[i]) != T_STRING) {
-        #ifdef DMP_DEBUG
-            rb_p(text);
-            printf("END\n");
-            rb_p(char_array_ptr[i]);
-            rb_p(char_array);
-            printf("FINAL\n");
-        #endif
-
-            bytes_array = char_array_ptr[i];
-        } else {
-            bytes_array  = RB_FUNC_CALL(char_array_ptr[i], dmp_bytes_id);
-        }
-
-        bytes_array_ptr           = RARRAY_PTR(bytes_array);
-        byte_size                 = RARRAY_LEN(bytes_array);
-        dmp_string.chars[i].size  = (int)bytes_array;
+        // Ruby equivalent code: "H".bytes => [72]
+        char_ary_idx              = INT2FIX(i);
+        bytes_array               = RB_FUNC_CALL(RB_ARRAY_REF(char_array, char_ary_idx), dmp_bytes_id);
+        byte_ary_size             = RARRAY_LENINT(bytes_array);
+        dmp_string.chars[i].size  = (short)byte_ary_size;
 
         // Convert and copy each byte array element over to our own byte array
-        for(j = 0; j < byte_size; j++) {
-            dmp_string.chars[i].bytes[j] = RB_FIX2SHORT(bytes_array_ptr[j]);
+        for(j = 0; j < byte_ary_size; j++) {
+            byte_ary_idx                 = INT2FIX(j);
+            dmp_string.chars[i].bytes[j] = RB_FIX2SHORT(RB_ARRAY_REF(bytes_array, byte_ary_idx));
         }
 
     }
@@ -155,7 +138,7 @@ static VALUE diff_bisect(VALUE self, VALUE text1, VALUE text2, VALUE deadline) {
             y1 = x1 - k1;
             while(x1 < text1_length &&
                   y1 < text2_length &&
-                  dmp_str_cmp(dmp_text1, dmp_text2, x1, y1))
+                  DMP_STR_CMP(dmp_text1.chars[x1], dmp_text2.chars[y1]))
             {
                 x1++;
                 y1++;
@@ -189,7 +172,9 @@ static VALUE diff_bisect(VALUE self, VALUE text1, VALUE text2, VALUE deadline) {
             y2 = x2 - k2;
             while(x2 < text1_length &&
                   y2 < text2_length &&
-                  dmp_str_cmp(dmp_text1, dmp_text2, text1_length - x2 - 1, text2_length - y2 - 1))
+                  DMP_STR_CMP(dmp_text1.chars[text1_length - x2 - 1],
+                              dmp_text2.chars[text2_length - y2 - 1])
+                  )
             {
                 x2++;
                 y2++;

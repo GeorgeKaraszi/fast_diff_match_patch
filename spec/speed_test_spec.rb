@@ -1,8 +1,10 @@
 # frozen_string_literal: true
 
+require "spec_helper"
+
 module FastDiffMatchPatch
   RSpec.describe "Speed Test" do
-    let!(:dmp)    { Diff.new }
+    let!(:dmp)    { FastDiffMatchPatch::Diff.new(diff_timeout: 0) }
     let!(:file_a) { File.read("spec/fixtures/speed1.txt") }
     let!(:file_b) { File.read("spec/fixtures/speed2.txt") }
 
