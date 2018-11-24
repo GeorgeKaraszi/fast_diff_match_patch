@@ -15,3 +15,5 @@
 CMakeLists.txt
 .idea/
 cmake-build-debug/
+runner.rb
+ruby

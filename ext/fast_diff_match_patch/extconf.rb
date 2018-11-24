@@ -3,6 +3,7 @@
 require "mkmf"
 
 extension_name = "fast_diff_match_patch"
+# MakeMakefile::CONFIG["optflags"] = ""
 
 dir_config(extension_name)
 
@@ -17,11 +18,11 @@ puts ">>>>> Creating Makefile for #{type} version #{RUBY_VERSION} on #{platform}
 
 {
   (type.upcase + "_RUBY") => nil,
-  "RUBY_TYPE"             => type,
-  "RUBY_VERSION"          => RUBY_VERSION,
-  "RUBY_VERSION_MAJOR"    => version[0],
-  "RUBY_VERSION_MINOR"    => version[1],
-  "RUBY_VERSION_MICRO"    => version[2]
+  "RUBY_TYPE" => type,
+  "RUBY_VERSION" => RUBY_VERSION,
+  "RUBY_VERSION_MAJOR" => version[0],
+  "RUBY_VERSION_MINOR" => version[1],
+  "RUBY_VERSION_MICRO" => version[2]
 }.each_pair do |k, v|
   $CPPFLAGS += if v.nil?
     " -D#{k}"
