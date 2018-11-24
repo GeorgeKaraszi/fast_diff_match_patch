@@ -4,22 +4,39 @@
 #include <stdbool.h>
 #include "ruby.h"
 
-#define MAX_UTF_8_BYTES 4
-#define NELEMS(x)                        (sizeof(x) / sizeof((x)[0]))
-#define NELEMS2(x, type)                 (sizeof(x) / sizeof(type))
-#define DMP_STR_CMP(x, y)                ( MEMCMP(x.bytes, y.bytes, short, MAX_UTF_8_BYTES) == 0 )
+#define DMP_CMP(x, y)                    ( x == y )
+#define DMP_MAX(x, y)                    ( x > y ? x : y )
+#define DMP_MIN(x, y)                    ( x > y ? y : x )
+
 #define RB_FUNC_CALL(caller, func_id)    ( rb_funcall(caller, func_id, 0) )
 #define RB_ARRAY_REF(rb_array, rb_index) ( rb_ary_aref(1, &rb_index, rb_array) )
 
-typedef struct DMPBytes {
-    short size;
-    short bytes[MAX_UTF_8_BYTES];
-} DMPBytes;
+#define FREE_DMP_STR2(x, y)              (FREE_DMP_STR_N(2, &x, &y))
+#define FREE_DMP_STR_N(count, ...)       (free_dmp_str(count, __VA_ARGS__))
 
 typedef struct DMPString {
-    int size;
-    DMPBytes *chars;
+    unsigned int size;
+    long *chars;
 } DMPString;
 
+extern void free_dmp_str(int count, ...);
+extern DMPString rb_str_to_dmp_hash(VALUE text);
+
+// Ruby Class instance ID's
+extern VALUE dmp_klass;
+extern VALUE dmp_time_klass;
+
+// Ruby function reference ID's
+extern ID dmp_new_delete_node_id;
+extern ID dmp_new_insert_node_id;
+extern ID dmp_diff_bisect_split_id;
+extern ID dmp_time_now_id;
+extern ID dmp_to_i_id;
+extern ID dmp_chars_id;
+
+// DMP Class instance variables
+extern double dmp_match_threshold;
+extern unsigned int dmp_match_distance;
+extern unsigned int dmp_max_bits;
 
 #endif /* FAST_DIFF_MATCH_PATCH_H */
