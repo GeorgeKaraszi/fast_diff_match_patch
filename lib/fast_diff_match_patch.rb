@@ -838,6 +838,368 @@ class FastDiffMatchPatch
     match_bitap(text, pattern, loc) # C extension
   end
 
+  def patch_make(*args)
+    text1, diffs   = patch_arguments(*args)
+    patch          = TempPatch.new
+    patches        = []
+    char_count1    = 0
+    char_count2    = 0
+    prepatch_text  = text1
+    postpatch_text = text1
+    return [] if diffs.empty?
+
+    diffs.each.with_index do |diff, idx|
+      if patch.diffs.empty? && !diff.is_equal?
+        patch.start1 = char_count1
+        patch.start2 = char_count2
+      end
+
+      case diff.operation
+      when :INSERT
+        patch.diffs << diff
+        patch.length2 += diff.text.length
+        postpatch_text = postpatch_text[0...char_count2] + diff.text +
+                         postpatch_text[char_count2..-1]
+      when :DELETE
+        patch.length1 += diff.text.length
+        patch.diffs << diff
+        postpatch_text = postpatch_text[0...char_count2] +
+                         postpatch_text[(char_count2 + diff.text.length)..-1]
+      else # :EQUAL
+        if diff.text.length <= 2 * @patch_margin && !patch.diffs.empty? && diffs.length != (idx + 1)
+          patch.diffs << diff
+          patch.length1 += diff.text.length
+          patch.length2 += diff.text.length
+        elsif diff.text.length >= 2 * @patch_margin
+          unless patch.diffs.empty?
+            patch_add_context(patch, prepatch_text)
+            patches << patch
+            patch         = TempPatch.new
+            prepatch_text = postpatch_text
+            char_count1   = char_count2
+          end
+        end
+      end
+
+      char_count1 += diff.text.length unless diff.is_insert?
+      char_count2 += diff.text.length unless diff.is_delete?
+    end
+
+    unless patch.diffs.empty?
+      patch_add_context(patch, prepatch_text)
+      patches << patch
+    end
+
+    patches
+  end
+  alias patch_main patch_make
+
+  # Take a list of patches and return a textual representation
+  def patch_to_text(patches)
+    patches.join
+  end
+
+  def patch_from_text(input)
+    return [] if input.empty?
+
+    patches = []
+    text    = input.split("\n")
+    text_pointer = 0
+    patch_header = /^@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@$/
+    while text_pointer < text.length
+      m = text[text_pointer].match(patch_header)
+      if m.nil?
+        raise ArgumentError.new("Invalid patch string: #{text[text_pointer]}")
+      end
+
+      patch = TempPatch.new
+      patches << patch
+      patch.start1 = m[1].to_i
+      if m[2].empty?
+        patch.start1 -= 1
+        patch.length1 = 1
+      elsif m[2] == "0"
+        patch.length1 = 0
+      else
+        patch.start1 -= 1
+        patch.length1 = m[2].to_i
+      end
+
+      patch.start2 = m[3].to_i
+      if m[4].empty?
+        patch.start2 -= 1
+        patch.length2 = 1
+      elsif m[4] == "0"
+        patch.length2 = 0
+      else
+        patch.start2 -= 1
+        patch.length2 = m[4].to_i
+      end
+
+      text_pointer += 1
+      while text_pointer < text.length
+        if text[text_pointer].empty?
+          text_pointer += 1
+          next
+        end
+
+        sign = text[text_pointer][0]
+        line = URI.decode(text[text_pointer][1..-1].force_encoding(Encoding::UTF_8))
+
+        case sign
+        when "-"
+          patch.diffs << new_delete_node(line)
+        when "+"
+          patch.diffs << new_insert_node(line)
+        when " "
+          patch.diffs << new_equal_node(line)
+        when "@"
+          break
+        else
+          raise ArgumentError.new("Invalid patch mode \"#{sign}\" in: #{line}")
+        end
+
+        text_pointer += 1
+      end
+    end
+
+    patches
+  end
+
+  def patch_add_context(patch, text)
+    return if text.empty?
+
+    padding            = 0
+    pattern            = text[patch.start2, patch.length1]
+    max_pattern_length = @match_max_bits - 2 * @patch_margin
+
+    while text.index(pattern) != text.rindex(pattern) && pattern.length < max_pattern_length
+      padding += @patch_margin
+      pattern = text[[0, patch.start2 - padding].max...(patch.start2 + patch.length1 + padding)]
+    end
+
+    # Add one chunk for good luck.
+    padding += @patch_margin
+
+    # Add the prefix.
+    prefix = text[[0, patch.start2 - padding].max...patch.start2]
+    patch.diffs.unshift(new_equal_node(prefix)) unless prefix.to_s.empty?
+
+    # Add the suffix.
+    suffix = text[patch.start2 + patch.length1, padding]
+    patch.diffs << new_equal_node(suffix) unless suffix.to_s.empty?
+
+    # Roll back the start points.
+    patch.start1 -= prefix.length
+    patch.start2 -= prefix.length
+
+    # Extend the lengths.
+    patch.length1 += prefix.length + suffix.length
+    patch.length2 += prefix.length + suffix.length
+  end
+
+  def patch_add_padding(patches)
+    padding_length = @patch_margin
+    null_padding   = (1..padding_length).map { |x| x.chr(Encoding::UTF_8) }.join
+
+    patches.each do |patch|
+      patch.start1 += padding_length
+      patch.start2 += padding_length
+    end
+
+    # Add some padding on start of first diff
+    patch = patches.first
+    diffs = patch.diffs
+    if diffs.empty? || !diffs.first.is_equal?
+      # Add null_padding equality
+      diffs.unshift(new_equal_node(null_padding))
+      patch.start1  -= padding_length
+      patch.start2  -= padding_length
+      patch.length1 += padding_length
+      patch.length2 += padding_length
+    elsif padding_length > diffs.first.text.length
+      # Grow first equality
+      extra_length = padding_length - diffs.first.text.length
+      diffs.first.text = null_padding[diffs.first.text.length..-1] + diffs.first.text
+      patch.start1  -= extra_length
+      patch.start2  -= extra_length
+      patch.length1 += extra_length
+      patch.length2 += extra_length
+    end
+
+    # Add padding on the end of last diff
+    patch = patches.last
+    diffs = patch.diffs
+
+    if diffs.empty? || !diffs.last.is_equal?
+      diffs << new_equal_node(null_padding)
+      patch.length1 += padding_length
+      patch.length2 += padding_length
+    elsif padding_length > diffs.last.text.length
+      # Grow last equality
+      extra_length = padding_length - diffs.last.text.length
+      diffs.last.text += null_padding[0, extra_length]
+      patch.length1   += extra_length
+      patch.length2   += extra_length
+    end
+
+    null_padding
+  end
+
+  # Look through the patches and break up any which are longer than the
+  # maximum limit of the match algorithm.
+  def patch_split_max(patches)
+    patch_size = match_max_bits
+
+    x = 0
+    while x < patches.length
+      if patches[x].length1 > patch_size
+        big_patch = patches[x]
+        # Remove the big old patch
+        patches[x, 1] = []
+        x -= 1
+        start1 = big_patch.start1
+        start2 = big_patch.start2
+        pre_context = ""
+        until big_patch.diffs.empty?
+          # Create one of several smaller patches.
+          patch = TempPatch.new
+          empty = true
+          patch.start1 = start1 - pre_context.length
+          patch.start2 = start2 - pre_context.length
+          unless pre_context.empty?
+            patch.length1 = patch.length2 = pre_context.length
+            patch.diffs.push(new_equal_node(pre_context))
+          end
+
+          while !big_patch.diffs.empty? && patch.length1 < patch_size - patch_margin
+            diff = big_patch.diffs.first
+            if diff.is_insert?
+              # Insertions are harmless.
+              patch.length2 += diff.text.length
+              start2 += diff.text.length
+              patch.diffs.push(big_patch.diffs.shift)
+              empty = false
+            elsif diff.is_delete? && patch.diffs.length == 1 &&
+                  patch.diffs.first.is_equal? && diff[1].length > 2 * patch_size
+              # This is a large deletion.  Let it pass in one chunk.
+              patch.length1 += diff.text.length
+              start1 += diff.text.length
+              empty = false
+              patch.diffs.push(big_patch.diffs.shift)
+            else
+              # Deletion or equality.  Only take as much as we can stomach.
+              diff_text = diff.text[0, patch_size - patch.length1 - patch_margin]
+              patch.length1 += diff_text.length
+              start1        += diff_text.length
+              if diff.is_equal?
+                patch.length2 += diff_text.length
+                start2 += diff_text.length
+              else
+                empty = false
+              end
+              patch.diffs.push(DiffNode.new(diff.operation, diff_text))
+              if diff_text == big_patch.diffs.first.text
+                big_patch.diffs.shift
+              else
+                big_patch.diffs.first.text = big_patch.diffs.first.text[diff_text.length..-1]
+              end
+            end
+          end
+
+          # Compute the head context for the next patch.
+          pre_context = diff_text2(patch.diffs)[-patch_margin..-1] || ""
+
+          # Append the end context for this patch.
+          post_context = diff_text1(big_patch.diffs)[0...patch_margin] || ""
+          unless post_context.empty?
+            patch.length1 += post_context.length
+            patch.length2 += post_context.length
+            if !patch.diffs.empty? && patch.diffs.last.is_equal?
+              patch.diffs.last.text += post_context
+            else
+              patch.diffs.push(new_equal_node(post_context))
+            end
+          end
+          unless empty
+            x += 1
+            patches[x, 0] = [patch]
+          end
+        end
+      end
+      x += 1
+    end
+  end
+
+  def patch_apply(patches, text)
+    return [text, []] if patches.empty?
+
+    patches      = Marshal.load(Marshal.dump(patches)) # Deep copy patches to prevent outside mutation
+    null_padding = patch_add_padding(patches)
+    text         = null_padding + text + null_padding
+    delta        = 0
+    results      = []
+    patch_split_max(patches)
+
+    patches.each.with_index do |patch, idx|
+      expected_loc = patch.start2 + delta
+      text1        = diff_text1(patch.diffs)
+      end_loc      = -1
+
+      if text1.length > @match_max_bits
+        start_loc = match_main(text, text1[0, @match_max_bits], expected_loc)
+
+        unless start_loc.negative?
+          end_loc   = match_main(text, text1[(text1.length - @match_max_bits)..-1], expected_loc + text1.length - @match_max_bits)
+          start_loc = -1 if end_loc.negative? || start_loc >= end_loc
+        end
+      else
+        start_loc = match_main(text, text1, expected_loc)
+      end
+
+      if start_loc.negative?
+        # no match found
+        results[idx] = false
+        # Subtract the delta for this failed patch from subsequent patches.
+        delta -= patch.length2 - patch.length1
+      else
+        # match found
+        results[idx] = true
+        delta        = start_loc - expected_loc
+        text2        = text[start_loc, end_loc.negative? ? text1.length : end_loc + @match_max_bits]
+
+        if text1 == text2
+          # Perfect match, just shove the replacement text in.
+          text = text[0, start_loc] + diff_text2(patch.diffs) + text[(start_loc + text1.length)..-1]
+        else
+          # Imperfect match.
+          # Run a diff to get a framework of equivalent indices.
+          diffs = diff_main(text1, text2, false)
+          if text1.length > @match_max_bits && (diff_levenshtein(diffs).to_f / text1.length) > @patch_delete_threshold
+            results[idx] = false
+          else
+            diff_cleanup_semantic_lossless(diffs)
+            index1 = 0
+            index2 = 0
+            patch.diffs.each do |diff|
+              index2 = diff_index(diffs, index1) unless diff.is_equal?
+              if diff.is_insert?
+                text = text[0, start_loc + index2] + diff.text + text[(start_loc + index2)..-1]
+              elsif diff.is_delete?
+                text = text[0, start_loc + index2] + text[(start_loc + diff_index(diffs, index1 + diff.text.length))..-1]
+              end
+
+              index1 += diff.text.length unless diff.is_delete?
+            end
+          end
+        end
+      end
+    end
+
+    text = text[null_padding.length...-null_padding.length]
+    [text, results]
+  end
+
   private
 
   def new_delete_node(text)
@@ -850,6 +1212,32 @@ class FastDiffMatchPatch
 
   def new_equal_node(text)
     DiffNode.new(:EQUAL, text)
+  end
+
+  def patch_arguments(*args)
+    if args.length == 1 && args[0].is_a?(Array)
+      diffs = args[0]
+      text1 = diff_text1(diffs)
+    elsif args.length == 2 && args[0].is_a?(String) && args[1].is_a?(String)
+      text1 = args[0]
+      text2 = args[1]
+      diffs = diff_main(text1, text2, true)
+      if diffs.length > 2
+        diff_cleanup_semantic(diffs)
+        diff_cleanup_efficiency(diffs)
+      end
+    elsif args.length == 2 && args[0].is_a?(String) && args[1].is_a?(Array)
+      text1 = args[0]
+      diffs = args[1]
+    elsif args.length == 3 && args[0].is_a?(String) && args[1].is_a?(String) && args[2].is_a?(Array)
+      text1 = args[0]
+      # text2 (args[1]) is not used
+      diffs = args[2]
+    else
+      raise ArgumentError.new("Unknown argument list types.")
+    end
+
+    [text1, diffs]
   end
 end
 # rubocop:enable Metrics/BlockNesting
